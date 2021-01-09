@@ -68,6 +68,42 @@ namespace GetOpt {
         case OptArg(_, descr) => "--${long}[=${descr}]"
     }
 
+
+
+    def _shortOpt(y: Char, ystr: String, rs: List[String], optDescrs: List[OptDescr[a]]): (OptKind[a], List[String]) = 
+        let options = List.filterMap(o -> { let ss = o.shortOptions; if (List.exists(s -> s == y, ss)) Some(o) else None}, optDescrs);
+        let ads     = List.map(o -> o.argDescriptor, options);
+        let optStr  = "-${y}";
+        match (ads, ystr, rs) {
+            case (_ :: _ :: _, _, rest)                                 => (errAmbig(options, optStr), rest)
+            case (NoArg(a) :: _, str, rest) if String.isEmpty(str)      => (Opt(a) ,rest)
+            case (NoArg(a) :: _, str, rest)                             => (Opt(a), "-${str}" :: rest)
+            case (ReqArg(_, d) :: _, str, Nil) if String.isEmpty(str)   => (errReq(d, optStr), Nil)
+            case (ReqArg(f, _) :: _, str, r :: rest) if String.isEmpty(str) => (Opt(f(r)), rest)
+            case (ReqArg(f, _) :: _, str, rest)                         => (Opt(f(str)), rest)
+            case (OptArg(f, _) :: _, str, rest) if String.isEmpty(str)  => (Opt(f(None)),rest)
+            case (OptArg(f, _) :: _, str, rest)                         => (Opt(f(Some(str))),rest)
+            case (Nil, str, rest) if String.isEmpty(str)                => (UnreqOpt(optStr), rest)
+            case (Nil, str, rest)                                       => (UnreqOpt(optStr), "-${str}" :: rest)
+        }
+
+
+    /// Error formatting functions
+
+    def errAmbig(ods: List[OptDescr[a]], optStr: String): OptKind[a] = 
+        let header = "option '${optStr}' is ambiguous; could be one of:";
+        OptErr(usageInfo(header, ods))
+
+    def errReq(d: String, optStr: String): OptKind[a] = 
+        OptErr ("option '${optStr}' requires an argument ${d}\n")
+
+    def _errUnrec(optStr: String): String = "unrecognized option '${optStr}'\n"
+
+    def _errNoArg(optStr: String): OptKind[a] = 
+        OptErr("option '${optStr}' doesn't allow an argument\n")
+
+    /// Additions to List...
+
     pub def unzip3(xs: List[(a, b, c)]): (List[a], List[b], List[c]) = unzip3Helper(xs, (ks1, ks2, ks3) -> (ks1, ks2, ks3))
 
     def unzip3Helper(xs: List[(a, b, c)], k: (List[a], List[b], List[c]) -> (List[a], List[b], List[c])): (List[a], List[b], List[c]) = match xs {
@@ -87,5 +123,8 @@ namespace GetOpt {
             case _ => k(Nil)
         }
 
+    pub def cartesianProduct(xs: List[a], ys: List[b]): List[(a,b)] = 
+        let step = x -> List.map(y -> (x,y), ys);
+        List.flatMap(step, xs)
 
 }    

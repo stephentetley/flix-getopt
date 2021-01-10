@@ -68,23 +68,46 @@ namespace GetOpt {
         case OptArg(_, descr) => "--${long}[=${descr}]"
     }
 
+    def _longOpt(str: String, rs: List[String], optDescrs: List[OptDescr[a]]): (OptKind[a], List[String]) = 
+        let (opt,arg)   = String.breakOnLeft("=", str);
+        let getWith     = p -> List.filterMap(o -> { let xs = o.longOptions; if (List.exists(p(opt), xs)) Some(o) else None}, optDescrs);
+        let exact       = getWith((x,y) -> x == y);
+        let options     = if (List.isEmpty(exact)) getWith((sub, s1) -> String.startsWith(s1, sub)) else exact;
+        let ads         = List.map(o -> o.argDescriptor, options);
+        let optStr      = "--${opt}";
+        match (ads, viewLeft(arg), rs) {
+            case (_ :: _ :: _,          _,                  rest)       => (errAmbig(options, optStr), rest)
+            case (NoArg(a) :: Nil,      None,               rest)       => (Opt(a), rest)
+            case (NoArg(_) :: Nil,      Some(('=', _)),     rest)       => (errNoArg(optStr), rest)
+            case (ReqArg(_, d) :: Nil,  None,               Nil)        => (errReq(d, optStr), Nil)
+            case (ReqArg(f, _) :: Nil,  None,               r :: rest)  => (Opt(f(r)), rest)
+            case (ReqArg(f, _) :: Nil,  Some(('=', xs)),    rest)       => (Opt(f(xs)), rest)
+            case (OptArg(f, _) :: Nil,  None,               rest)       => (Opt(f(None)), rest)
+            case (OptArg(f, _) :: Nil,  Some(('=', xs)),    rest)       => (Opt(f(Some(xs))), rest)
+            case (_,                    _,                  rest)       => (UnreqOpt("--${str}"), rest)
+        }
 
+    def viewLeft(s: String): Option[(Char, String)] = 
+        if (String.length(s) >= 0)
+            Some((String.charAt(0, s), String.dropLeft(1, s)))
+        else
+            None
 
     def _shortOpt(y: Char, ystr: String, rs: List[String], optDescrs: List[OptDescr[a]]): (OptKind[a], List[String]) = 
         let options = List.filterMap(o -> { let ss = o.shortOptions; if (List.exists(s -> s == y, ss)) Some(o) else None}, optDescrs);
         let ads     = List.map(o -> o.argDescriptor, options);
         let optStr  = "-${y}";
         match (ads, ystr, rs) {
-            case (_ :: _ :: _, _, rest)                                 => (errAmbig(options, optStr), rest)
-            case (NoArg(a) :: _, str, rest) if String.isEmpty(str)      => (Opt(a) ,rest)
-            case (NoArg(a) :: _, str, rest)                             => (Opt(a), "-${str}" :: rest)
-            case (ReqArg(_, d) :: _, str, Nil) if String.isEmpty(str)   => (errReq(d, optStr), Nil)
-            case (ReqArg(f, _) :: _, str, r :: rest) if String.isEmpty(str) => (Opt(f(r)), rest)
-            case (ReqArg(f, _) :: _, str, rest)                         => (Opt(f(str)), rest)
-            case (OptArg(f, _) :: _, str, rest) if String.isEmpty(str)  => (Opt(f(None)),rest)
-            case (OptArg(f, _) :: _, str, rest)                         => (Opt(f(Some(str))),rest)
-            case (Nil, str, rest) if String.isEmpty(str)                => (UnreqOpt(optStr), rest)
-            case (Nil, str, rest)                                       => (UnreqOpt(optStr), "-${str}" :: rest)
+            case (_ :: _ :: _, _, rest)                 => (errAmbig(options, optStr), rest)
+            case (NoArg(a) :: _, "", rest)              => (Opt(a), rest)
+            case (NoArg(a) :: _, str, rest)             => (Opt(a), "-${str}" :: rest)
+            case (ReqArg(_, d) :: _, "", Nil)           => (errReq(d, optStr), Nil)
+            case (ReqArg(f, _) :: _, "", r :: rest)     => (Opt(f(r)), rest)
+            case (ReqArg(f, _) :: _, str, rest)         => (Opt(f(str)), rest)
+            case (OptArg(f, _) :: _, "", rest)          => (Opt(f(None)),rest)
+            case (OptArg(f, _) :: _, str, rest)         => (Opt(f(Some(str))),rest)
+            case (Nil, "", rest)                        => (UnreqOpt(optStr), rest)
+            case (Nil, str, rest)                       => (UnreqOpt(optStr), "-${str}" :: rest)
         }
 
 
@@ -99,7 +122,7 @@ namespace GetOpt {
 
     def _errUnrec(optStr: String): String = "unrecognized option '${optStr}'\n"
 
-    def _errNoArg(optStr: String): OptKind[a] = 
+    def errNoArg(optStr: String): OptKind[a] = 
         OptErr("option '${optStr}' doesn't allow an argument\n")
 
     /// Additions to List...

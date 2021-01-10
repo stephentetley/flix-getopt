@@ -68,7 +68,42 @@ namespace GetOpt {
         case OptArg(_, descr) => "--${long}[=${descr}]"
     }
 
-    def _longOpt(str: String, rs: List[String], optDescrs: List[OptDescr[a]]): (OptKind[a], List[String]) = 
+
+    pub def getOpt(ordering: ArgOrder[a], 
+                   optDescrs: List[OptDescr[a]], 
+                   sourceArgs: List[String]): (List[a], List[String], List[String]) =
+        let (os,xs,us,es) = getOpt1(ordering, optDescrs, sourceArgs);
+        (os, xs, es ::: List.map(errUnrec, us))
+
+    pub def getOpt1(ordering: ArgOrder[a], 
+                    optDescrs: List[OptDescr[a]], 
+                    sourceArgs: List[String]): (List[a], List[String], List[String] , List[String]) = match sourceArgs {
+        case Nil => (Nil, Nil, Nil, Nil)
+        case arg :: args => {
+            let (opt, rest)         = getNext(arg, args, optDescrs);
+            let (os, xs, us, es)    = getOpt1(ordering, optDescrs, rest);
+            match (opt, ordering) {
+                case (Opt(o),       _)                  => (o :: os, xs, us, es)
+                case (UnreqOpt(u),  _)                  => (os, xs, u :: us, es)
+                case (NonOpt(x),    RequireOrder)       => (Nil,x :: rest, Nil, Nil)
+                case (NonOpt(x),    Permute)            => (os, x :: xs, us, es)
+                case (NonOpt(x),    ReturnInOrder(f))   => (f(x) :: os, xs, us, es)
+                case (EndOfOpts,    RequireOrder)       => (Nil, rest, Nil, Nil)
+                case (EndOfOpts,    Permute)            => (Nil, rest, Nil, Nil)
+                case (EndOfOpts,    ReturnInOrder(f))   => (List.map(f, rest), Nil, Nil, Nil)
+                case (OptErr(e),    _)                  => (os, xs, us, e :: es)
+            }                
+        }
+    } 
+
+    def getNext(arg: String, rest: List[String], optDescrs: List[OptDescr[a]]): (OptKind[a], List[String]) = match arg {
+        case "--"                                                       => (EndOfOpts, rest)
+        case s if String.startsWith(s, "--")                            => longOpt(String.dropLeft(2, s), rest, optDescrs)
+        case s if String.startsWith(s, "-") and String.length(s) >= 2   => shortOpt(String.charAt(1, s), String.dropLeft(2, s), rest, optDescrs)
+        case s                                                          => (NonOpt(s), rest)
+    }
+
+    def longOpt(str: String, rs: List[String], optDescrs: List[OptDescr[a]]): (OptKind[a], List[String]) = 
         let (opt,arg)   = String.breakOnLeft("=", str);
         let getWith     = p -> List.filterMap(o -> { let xs = o.longOptions; if (List.exists(p(opt), xs)) Some(o) else None}, optDescrs);
         let exact       = getWith((x,y) -> x == y);
@@ -93,7 +128,7 @@ namespace GetOpt {
         else
             None
 
-    def _shortOpt(y: Char, ystr: String, rs: List[String], optDescrs: List[OptDescr[a]]): (OptKind[a], List[String]) = 
+    def shortOpt(y: Char, ystr: String, rs: List[String], optDescrs: List[OptDescr[a]]): (OptKind[a], List[String]) = 
         let options = List.filterMap(o -> { let ss = o.shortOptions; if (List.exists(s -> s == y, ss)) Some(o) else None}, optDescrs);
         let ads     = List.map(o -> o.argDescriptor, options);
         let optStr  = "-${y}";
@@ -120,7 +155,7 @@ namespace GetOpt {
     def errReq(d: String, optStr: String): OptKind[a] = 
         OptErr ("option '${optStr}' requires an argument ${d}\n")
 
-    def _errUnrec(optStr: String): String = "unrecognized option '${optStr}'\n"
+    def errUnrec(optStr: String): String = "unrecognized option '${optStr}'\n"
 
     def errNoArg(optStr: String): OptKind[a] = 
         OptErr("option '${optStr}' doesn't allow an argument\n")

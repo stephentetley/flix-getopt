@@ -26,8 +26,8 @@ def options(): List[OptDescr[Flag]] =
         {shortOptions = 'v' :: Nil,         longOptions = "verbose" :: Nil,     argDescriptor = NoArg(Verbose),         explanation = "chatty output on stderr"}
     ::  {shortOptions = 'V' :: '?' :: Nil,  longOptions = "version" :: Nil,     argDescriptor = NoArg(Version),         explanation = "show version number" }
     ::  {shortOptions = 'o':: Nil,          longOptions = "output" :: Nil,      argDescriptor = OptArg(outp, "FILE"),   explanation = "output FILE" }
-    ::  {shortOptions = 'c':: Nil,          longOptions = Nil,                  argDescriptor = OptArg(inp,  "FILE"),   explanation ="input FILE" }
-    ::  {shortOptions = 'L':: Nil,          longOptions = "libdir" :: Nil,      argDescriptor = ReqArg(LibDir, "DIR"),  explanation ="library directory" }
+    ::  {shortOptions = 'c':: Nil,          longOptions = Nil,                  argDescriptor = OptArg(inp, "FILE"),    explanation = "input FILE" }
+    ::  {shortOptions = 'L':: Nil,          longOptions = "libdir" :: Nil,      argDescriptor = ReqArg(LibDir,"DIR"),   explanation = "library directory" }
     :: Nil
 
 def inp(x: Option[String]): Flag = match x { 
@@ -42,7 +42,8 @@ def outp(x: Option[String]): Flag = match x {
 
 
 def main(argv: Array[String]): Int32 & Impure = 
-    let args = Array.toList(argv);
+    Array.foreach(x -> Console.printLine("Arg: '${x}'"), argv);
+    let args = Array.toList(argv);    
     let header = "Usage: <program> [OPTION...] files...";
     let options1 = options();
     match getOpt(Permute, options1, args) {

@@ -93,7 +93,7 @@ namespace GetOpt {
                     sourceArgs: List[String]): (List[a], List[String], List[String] , List[String]) = match sourceArgs {
         case Nil => (Nil, Nil, Nil, Nil)
         case arg :: args => {
-            let (opt, rest)         = getNext(arg, args, optDescrs);
+            let (opt, rest)         = getNext(arg, optDescrs, args);
             let (os, xs, us, es)    = getOpt1(ordering, optDescrs, rest);
             match (opt, ordering) {
                 case (Opt(o),       _)                  => (o :: os, xs, us, es)
@@ -109,21 +109,23 @@ namespace GetOpt {
         }
     } 
 
-    def getNext(arg: String, rest: List[String], optDescrs: List[OptDescr[a]]): (OptKind[a], List[String]) = match arg {
-        case "--"                                                       => (EndOfOpts, rest)
-        case s if String.startsWith(s, "--")                            => longOpt(String.dropLeft(2, s), rest, optDescrs)
-        case s if String.startsWith(s, "-") and String.length(s) >= 2   => shortOpt(String.charAt(1, s), String.dropLeft(2, s), rest, optDescrs)
-        case s                                                          => (NonOpt(s), rest)
+    def getNext(arg: String, optDescrs: List[OptDescr[a]], tokens: List[String]): (OptKind[a], List[String]) = match arg {
+        case "--"                                                       => (EndOfOpts, tokens)
+        case s if String.startsWith(s, "--")                            => longOpt(String.dropLeft(2, s), optDescrs, tokens)
+        case s if String.startsWith(s, "-") and String.length(s) >= 2   => shortOpt(String.charAt(1, s), String.dropLeft(2, s), optDescrs, tokens)
+        case s                                                          => (NonOpt(s), tokens)
     }
 
-    def longOpt(str: String, rs: List[String], optDescrs: List[OptDescr[a]]): (OptKind[a], List[String]) = 
-        let (opt,arg)   = String.breakOnLeft("=", str);
-        let getWith     = p -> List.filterMap(o -> { let xs = o.longOptions; if (List.exists(p(opt), xs)) Some(o) else None}, optDescrs);
+    /// "--" has been parsed
+    /// `xstr` is the rest of the current token
+    def longOpt(xstr: String, optDescrs: List[OptDescr[a]], tokens: List[String]): (OptKind[a], List[String]) = 
+        let (optname, arg)  = String.breakOnLeft("=", xstr);
+        let getWith     = p -> List.filterMap(o -> { let xs = o.longOptions; if (List.exists(p(optname), xs)) Some(o) else None}, optDescrs);
         let exact       = getWith((x,y) -> x == y);
         let options     = if (List.isEmpty(exact)) getWith((sub, s1) -> String.startsWith(s1, sub)) else exact;
         let ads         = List.map(o -> o.argDescriptor, options);
-        let optStr      = "--${opt}";
-        match (ads, viewLeft(arg), rs) {
+        let optStr      = "--${optname}";
+        match (ads, viewLeft(arg), tokens) {
             case (_ :: _ :: _,          _,                  rest)       => (errAmbig(options, optStr), rest)
             case (NoArg(a) :: Nil,      None,               rest)       => (Opt(a), rest)
             case (NoArg(_) :: Nil,      Some(('=', _)),     rest)       => (errNoArg(optStr), rest)
@@ -132,7 +134,7 @@ namespace GetOpt {
             case (ReqArg(f, _) :: Nil,  Some(('=', xs)),    rest)       => (Opt(f(xs)), rest)
             case (OptArg(f, _) :: Nil,  None,               rest)       => (Opt(f(None)), rest)
             case (OptArg(f, _) :: Nil,  Some(('=', xs)),    rest)       => (Opt(f(Some(xs))), rest)
-            case (_,                    _,                  rest)       => (UnreqOpt("--${str}"), rest)
+            case (_,                    _,                  rest)       => (UnreqOpt("--${xstr}"), rest)
         }
 
     def viewLeft(s: String): Option[(Char, String)] = 
@@ -141,12 +143,17 @@ namespace GetOpt {
         else
             None
 
-    def shortOpt(y: Char, ystr: String, rs: List[String], optDescrs: List[OptDescr[a]]): (OptKind[a], List[String]) = 
-        let options = List.filterMap(o -> { let ss = o.shortOptions; if (List.exists(s -> s == y, ss)) Some(o) else None}, optDescrs);
+    /// "-" has been parsed (i.e. x0).
+    /// `xc` is the first char of the current token after the dash, which should identify the option.
+    /// `xstr` is the rest of the current token
+    /// Never see "=" for a short arg
+    def shortOpt(xc: Char, xstr: String, optDescrs: List[OptDescr[a]], tokens: List[String]): (OptKind[a], List[String]) = 
+        /// This finds 0, 1, or more results. "more" is a failure (ambiguous), 0 is ignored, 1 is success. 
+        let options = List.filterMap(o -> { let ss = o.shortOptions; if (List.exists(s -> s == xc, ss)) Some(o) else None}, optDescrs);
         let ads     = List.map(o -> o.argDescriptor, options);
-        let optStr  = "-${y}";
-        match (ads, ystr, rs) {
-            case (_ :: _ :: _, _, rest)                 => (errAmbig(options, optStr), rest)
+        let optStr  = "-${xc}";
+        match (ads, xstr, tokens) {
+            case (_ :: _ :: _, _, rest)                 => (errAmbig(options, optStr), rest)  /// TODO use Option instead if list?
             case (NoArg(a) :: _, "", rest)              => (Opt(a), rest)
             case (NoArg(a) :: _, str, rest)             => (Opt(a), "-${str}" :: rest)
             case (ReqArg(_, d) :: _, "", Nil)           => (errReq(d, optStr), Nil)
@@ -165,6 +172,7 @@ namespace GetOpt {
         let header = "option '${optStr}' is ambiguous; could be one of:";
         OptErr(usageInfo(header, ods))
 
+    /// Requires an argument but it was missing.
     def errReq(d: String, optStr: String): OptKind[a] = 
         OptErr ("option '${optStr}' requires an argument ${d}\n")
 

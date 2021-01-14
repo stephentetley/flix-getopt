@@ -1,5 +1,17 @@
--- In GHCi: 
+-- In GHCi, load Opt1.hs, set args and run main.
+
 -- :set args -v --output=target.html -L/home/stephen
+-- Passes.
+
+-- :set args --ver --output=target.html -L/home/stephen
+-- Fails. "--ver" is not a long enough prefix to identify a single option. 
+-- Could be either "--verbose" or "--version"
+
+-- :set args --vers --output=target.html -L/home/stephen
+-- Passes. "--vers" is a long enough prefix to identify a single option "--version"
+
+-- :set args -ver --output=target.html -L/home/stephen
+-- Fails. "-ver" is recognized as three options 'v', 'e' and 'r' but 'e' and 'r' are not defined
 
 module Opts1 where
 

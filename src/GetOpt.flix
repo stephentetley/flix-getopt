@@ -45,10 +45,11 @@ namespace GetOpt {
         }
 
 
+
+
     pub def usageInfo(header: String, optDescriptors: List[OptDescr[a]]): String = 
         let paste = (x, y, z) -> "  ${x}  ${y}  ${z}";
-        let build = List.flatMap(formatOpt) >> unzip3;
-        let (shorts, longs, ds) = build(optDescriptors);
+        let (shorts, longs, ds) = List.flatMap(formatOpt, optDescriptors) |> unzip3;
         let table = zipWith3(paste, sameLen(shorts), sameLen(longs), ds);
         String.unlines(header :: table)
 
@@ -85,12 +86,12 @@ namespace GetOpt {
     pub def getOpt(ordering: ArgOrder[a], 
                    optDescrs: List[OptDescr[a]], 
                    sourceArgs: List[String]): (List[a], List[String], List[String]) =
-        let (os,xs,us,es) = getOpt1(ordering, optDescrs, sourceArgs);
+        let (os, xs, us, es) = getOpt1(ordering, optDescrs, sourceArgs);
         (os, xs, es ::: List.map(errUnrec, us))
 
     pub def getOpt1(ordering: ArgOrder[a], 
                     optDescrs: List[OptDescr[a]], 
-                    sourceArgs: List[String]): (List[a], List[String], List[String] , List[String]) = match sourceArgs {
+                    sourceArgs: List[String]): (List[a], List[String], List[String], List[String]) = match sourceArgs {
         case Nil => (Nil, Nil, Nil, Nil)
         case arg :: args => {
             let (opt, rest)         = getNext(arg, optDescrs, args);
@@ -98,7 +99,7 @@ namespace GetOpt {
             match (opt, ordering) {
                 case (Opt(o),       _)                  => (o :: os, xs, us, es)
                 case (UnreqOpt(u),  _)                  => (os, xs, u :: us, es)
-                case (NonOpt(x),    RequireOrder)       => (Nil,x :: rest, Nil, Nil)
+                case (NonOpt(x),    RequireOrder)       => (Nil, x :: rest, Nil, Nil)
                 case (NonOpt(x),    Permute)            => (os, x :: xs, us, es)
                 case (NonOpt(x),    ReturnInOrder(f))   => (f(x) :: os, xs, us, es)
                 case (EndOfOpts,    RequireOrder)       => (Nil, rest, Nil, Nil)
@@ -121,7 +122,10 @@ namespace GetOpt {
     def longOpt(xstr: String, optDescrs: List[OptDescr[a]], tokens: List[String]): (OptKind[a], List[String]) = 
         let (optname, arg)  = String.breakOnLeft("=", xstr);
         let getWith     = p -> List.filterMap(o -> { let xs = o.longOptions; if (List.exists(p(optname), xs)) Some(o) else None}, optDescrs);
-        let exact       = getWith((x,y) -> x == y);
+        /// exact match of `optname` ...
+        let exact       = getWith((x,y) -> x == y): List[OptDescr[a]];
+        /// Prefix `optname` match...
+        /// If the prefix is enough to uniquely match with a long option string it is good enough...
         let options     = if (List.isEmpty(exact)) getWith((sub, s1) -> String.startsWith(s1, sub)) else exact;
         let ads         = List.map(o -> o.argDescriptor, options);
         let optStr      = "--${optname}";

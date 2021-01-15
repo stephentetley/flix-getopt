@@ -4,14 +4,24 @@
 -- Passes.
 
 -- :set args --ver --output=target.html -L/home/stephen
--- Fails. "--ver" is not a long enough prefix to identify a single option. 
+-- Fails. "--ver" is not a long enough prefix to identify a single option.
 -- Could be either "--verbose" or "--version"
 
 -- :set args --vers --output=target.html -L/home/stephen
 -- Passes. "--vers" is a long enough prefix to identify a single option "--version"
 
 -- :set args -ver --output=target.html -L/home/stephen
--- Fails. "-ver" is recognized as three options 'v', 'e' and 'r' but 'e' and 'r' are not defined
+-- Fails. "-ver" is parsed as three options 'v', 'e' and 'r' but 'e' and 'r' are unrecognized
+
+-- :set args -Q --output=target.html -L/home/stephen
+-- Fails. "-Q" is unrecognized.
+
+-- :set args --trouble --output=target.html -L/home/stephen
+-- Fails. "-Q" is unrecognized.
+
+-- :set args --output=target.html -L/home/stephen file1.txt file2.txt
+-- Passes. Includes non-opts
+
 
 module Opts1 where
 
@@ -45,11 +55,11 @@ compilerOpts argv =
     where header = "Usage: ic [OPTION...] files..."
 
 main :: IO ()
-main = do 
+main = do
     args <- getArgs
     mapM_ (\x -> putStrLn ("arg: " ++ x)) args
     (opts, nonopts) <- compilerOpts args
-    print opts
-    print nonopts
+    putStrLn $ "Opts: " ++ show opts
+    putStrLn $ "Non-opts: " ++ show nonopts
     return ()
 

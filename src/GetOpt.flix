@@ -59,15 +59,13 @@ namespace GetOpt {
 
     def formatOpt(opts: OptDescr[a]): List[(String, String, String)] = 
         let shorts  = List.map(formatShort(opts.argDescriptor),  opts.shortOptions) |> sepBy(',');
-        let longs   = List.map(formatLong(opts.argDescriptor), opts.longOptions) |> sepBy(',');
+        let longs   = List.map(formatLong(opts.argDescriptor),   opts.longOptions)  |> sepBy(',');
         match String.lines(opts.explanation) { 
             case Nil => (shorts, longs, "") :: Nil
             case d :: ds => (shorts, longs, d) :: List.map(x -> ("", "", x), ds)
         }
 
-    def sepBy(ch: Char, ss: List[String]): String = 
-        let sep = "${ch} ";
-        String.intercalate(sep, ss)
+    def sepBy(ch: Char, ss: List[String]): String = String.intercalate("${ch} ", ss)
 
 
     def formatShort(argDescr: ArgDescr[a], short: Char): String = match argDescr {
@@ -86,19 +84,27 @@ namespace GetOpt {
     pub def getOpt(ordering: ArgOrder[a], 
                    optDescrs: List[OptDescr[a]], 
                    sourceArgs: List[String]): Result[{options: List[a], nonOptions: List[String]}, List[String]] =
-        let (os, xs, us, es) = getOpt1(ordering, optDescrs, sourceArgs);
-        match es ::: List.map(errUnrec, us) {
-            case Nil => Ok({options = os, nonOptions = xs})
+        let answers = getOpt1(ordering, optDescrs, sourceArgs);
+        match answers.errors ::: List.map(errUnrec, answers.unknowns) {
+            case Nil => Ok({options = answers.options, nonOptions = answers.nonOptions})
             case errs => Err(errs)
         }
 
     pub def getOpt1(ordering: ArgOrder[a], 
                     optDescrs: List[OptDescr[a]], 
+                    sourceArgs: List[String]): {options: List[a], nonOptions: List[String], unknowns: List[String], errors: List[String]} =
+        let (os, xs, us, es) = getOpt1Helper(ordering, optDescrs, sourceArgs);
+        {options = os, nonOptions = xs, unknowns = us, errors = es}
+
+
+
+    def getOpt1Helper(ordering: ArgOrder[a], 
+                    optDescrs: List[OptDescr[a]], 
                     sourceArgs: List[String]): (List[a], List[String], List[String], List[String]) = match sourceArgs {
         case Nil => (Nil, Nil, Nil, Nil)
         case arg :: args => {
             let (opt, rest)         = getNext(arg, optDescrs, args);
-            let (os, xs, us, es)    = getOpt1(ordering, optDescrs, rest);
+            let (os, xs, us, es)    = getOpt1Helper(ordering, optDescrs, rest);
             match (opt, ordering) {
                 case (Opt(o),       _)                  => (o :: os, xs, us, es)
                 case (UnreqOpt(u),  _)                  => (os, xs, u :: us, es)        /// u is added to 
@@ -167,6 +173,7 @@ namespace GetOpt {
             case Err(NotFound)                      => (UnreqOpt(optStr), "-${xstr}" :: tokens)
         }
 
+    /// Looking up options
 
     enum GetOptionFailure[a] {
         case Ambiguous(List[OptDescr[a]])

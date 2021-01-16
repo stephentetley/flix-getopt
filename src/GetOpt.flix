@@ -29,7 +29,7 @@ namespace GetOpt {
         case OptArg(Option[String] -> a, String)
     }
 
-    enum OptKind[a] {
+    enum OptionKind[a] {
         case Opt(a)
         case UnreqOpt(String)
         case NonOpt(String)
@@ -37,9 +37,9 @@ namespace GetOpt {
         case OptErr(String)
     }
 
-    type alias OptDescr[a] =
-        { shortOptions: List[Char]
-        , longOptions: List[String]
+    type alias OptionDescr[a] =
+        { optionIds: List[Char]
+        , optionNames: List[String]
         , argDescriptor: ArgDescr[a]
         , explanation: String
         }
@@ -47,9 +47,9 @@ namespace GetOpt {
 
 
 
-    pub def usageInfo(header: String, optDescriptors: List[OptDescr[a]]): String = 
+    pub def usageInfo(header: String, optionDescriptors: List[OptionDescr[a]]): String = 
         let paste = (x, y, z) -> "  ${x}  ${y}  ${z}";
-        let (shorts, longs, ds) = List.flatMap(formatOpt, optDescriptors) |> unzip3;
+        let (shorts, longs, ds) = List.flatMap(formatOpt, optionDescriptors) |> unzip3;
         let table = zipWith3(paste, sameLen(shorts), sameLen(longs), ds);
         String.unlines(header :: table)
 
@@ -57,9 +57,9 @@ namespace GetOpt {
         let width = List.foldLeft((ac, x) -> Int32.max(ac, String.length(x)), 0, xs);
         List.map(String.padRight(width, ' '), xs)
 
-    def formatOpt(opts: OptDescr[a]): List[(String, String, String)] = 
-        let shorts  = List.map(formatShort(opts.argDescriptor),  opts.shortOptions) |> sepBy(',');
-        let longs   = List.map(formatLong(opts.argDescriptor),   opts.longOptions)  |> sepBy(',');
+    def formatOpt(opts: OptionDescr[a]): List[(String, String, String)] = 
+        let shorts  = List.map(formatShort(opts.argDescriptor),  opts.optionIds)   |> sepBy(',');
+        let longs   = List.map(formatLong(opts.argDescriptor),   opts.optionNames) |> sepBy(',');
         match String.lines(opts.explanation) { 
             case Nil => (shorts, longs, "") :: Nil
             case d :: ds => (shorts, longs, d) :: List.map(x -> ("", "", x), ds)
@@ -69,20 +69,20 @@ namespace GetOpt {
 
 
     def formatShort(argDescr: ArgDescr[a], short: Char): String = match argDescr {
-        case NoArg(_) => "-${short}"
-        case ReqArg(_, descr) => "-${short} ${descr}"
-        case OptArg(_, descr) => "-${short}[${descr}]"
+        case NoArg(_)           => "-${short}"
+        case ReqArg(_, descr)   => "-${short} ${descr}"
+        case OptArg(_, descr)   => "-${short}[${descr}]"
     }
 
     def formatLong(argDescr: ArgDescr[a], long: String): String = match argDescr {
-        case NoArg(_) => "--${long}"
-        case ReqArg(_, descr) => "--${long}=${descr}"
-        case OptArg(_, descr) => "--${long}[=${descr}]"
+        case NoArg(_)           => "--${long}"
+        case ReqArg(_, descr)   => "--${long}=${descr}"
+        case OptArg(_, descr)   => "--${long}[=${descr}]"
     }
 
-
+    /// Failure is a list of error messages
     pub def getOpt(ordering: ArgOrder[a], 
-                   optDescrs: List[OptDescr[a]], 
+                   optDescrs: List[OptionDescr[a]], 
                    sourceArgs: List[String]): Result[{options: List[a], nonOptions: List[String]}, List[String]] =
         let answers = getOpt1(ordering, optDescrs, sourceArgs);
         match answers.errors ::: List.map(errUnrec, answers.unknowns) {
@@ -91,15 +91,17 @@ namespace GetOpt {
         }
 
     pub def getOpt1(ordering: ArgOrder[a], 
-                    optDescrs: List[OptDescr[a]], 
+                    optDescrs: List[OptionDescr[a]], 
                     sourceArgs: List[String]): {options: List[a], nonOptions: List[String], unknowns: List[String], errors: List[String]} =
         let (os, xs, us, es) = getOpt1Helper(ordering, optDescrs, sourceArgs);
         {options = os, nonOptions = xs, unknowns = us, errors = es}
 
 
-
+    /// 
+    /// Helper for `getOpt1`
+    /// 
     def getOpt1Helper(ordering: ArgOrder[a], 
-                    optDescrs: List[OptDescr[a]], 
+                    optDescrs: List[OptionDescr[a]], 
                     sourceArgs: List[String]): (List[a], List[String], List[String], List[String]) = match sourceArgs {
         case Nil => (Nil, Nil, Nil, Nil)
         case arg :: args => {
@@ -119,7 +121,9 @@ namespace GetOpt {
         }
     } 
 
-    def getNext(arg: String, optDescrs: List[OptDescr[a]], tokens: List[String]): (OptKind[a], List[String]) = match arg {
+    def getNext(arg: String, 
+                optDescrs: List[OptionDescr[a]], 
+                tokens: List[String]): (OptionKind[a], List[String]) = match arg {
         case "--"                                                       => (EndOfOpts, tokens)
         case s if String.startsWith(s, "--")                            => longOpt(String.dropLeft(2, s), optDescrs, tokens)
         case s if String.startsWith(s, "-") and String.length(s) >= 2   => shortOpt(String.charAt(1, s), String.dropLeft(2, s), optDescrs, tokens)
@@ -128,11 +132,11 @@ namespace GetOpt {
 
     /// "--" has been parsed
     /// `xstr` is the rest of the current token
-    def longOpt(xstr: String, optDescrs: List[OptDescr[a]], tokens: List[String]): (OptKind[a], List[String]) = 
+    def longOpt(xstr: String, optDescrs: List[OptionDescr[a]], tokens: List[String]): (OptionKind[a], List[String]) = 
         let (optname, arg)  = String.breakOnLeft("=", xstr);
         let optStr      = "--${optname}";
-        match getStringOption(optname, optDescrs) { 
-            case Ok(opt) => match (opt.argDescriptor, viewLeft(arg), tokens) {
+        match findOptionByName(optname, optDescrs) { 
+            case Ok(opt) => match (opt.argDescriptor, deconsLeft(arg), tokens) {
                 case (NoArg(a),     None,               rest)       => (Opt(a), rest)
                 case (NoArg(_),     Some(('=', _)),     rest)       => (errNoArg(optStr), rest)
                 case (ReqArg(_, d), None,               Nil)        => (errReq(d, optStr), Nil)
@@ -146,7 +150,7 @@ namespace GetOpt {
             case Err(NotFound)                                      => (UnreqOpt("--${xstr}"), tokens)
         }
 
-    def viewLeft(s: String): Option[(Char, String)] = 
+    def deconsLeft(s: String): Option[(Char, String)] = 
         if (String.length(s) >= 0)
             Some((String.charAt(0, s), String.dropLeft(1, s)))
         else
@@ -156,9 +160,9 @@ namespace GetOpt {
     /// `xc` is the first char of the current token after the dash, which should identify the option.
     /// `xstr` is the rest of the current token
     /// Never see "=" for a short arg
-    def shortOpt(xc: Char, xstr: String, optDescrs: List[OptDescr[a]], tokens: List[String]): (OptKind[a], List[String]) =         
+    def shortOpt(xc: Char, xstr: String, optDescrs: List[OptionDescr[a]], tokens: List[String]): (OptionKind[a], List[String]) =         
         let optStr  = "-${xc}";
-        match getCharOption(xc, optDescrs) {
+        match findOptionById(xc, optDescrs) {
             case Ok(opt) => match (opt.argDescriptor, xstr, tokens)  {
                 case (NoArg(a), "", rest)           => (Opt(a), rest)
                 case (NoArg(a), str, rest)          => (Opt(a), "-${str}" :: rest)
@@ -176,23 +180,14 @@ namespace GetOpt {
     /// Looking up options
 
     enum GetOptionFailure[a] {
-        case Ambiguous(List[OptDescr[a]])
+        case Ambiguous(List[OptionDescr[a]])
         case NotFound
     }
 
-    def getCharOption(xc: Char, optDescrs: List[OptDescr[a]]): Result[OptDescr[a], GetOptionFailure[a]] = 
-        /// This finds 0, 1, or more results. "more" is a failure (ambiguous), 0 is ignored, 1 is success. 
-        let options = List.filterMap(o -> { let ss = o.shortOptions; if (List.exists(s -> s == xc, ss)) Some(o) else None}, optDescrs);
-        match options {
-            case optd :: Nil    => Ok(optd)
-            case Nil            => Err(NotFound)
-            case xs             => Err(Ambiguous(xs))
-        }
-
-    def getStringOption(optname: String, optDescrs: List[OptDescr[a]]): Result[OptDescr[a], GetOptionFailure[a]] = 
-        let getWith     = p -> List.filterMap(o -> { let xs = o.longOptions; if (List.exists(p(optname), xs)) Some(o) else None}, optDescrs);
+    def findOptionByName(optname: String, optDescrs: List[OptionDescr[a]]): Result[OptionDescr[a], GetOptionFailure[a]] = 
+        let getWith     = p -> List.filterMap(o -> { let xs = o.optionNames; if (List.exists(p(optname), xs)) Some(o) else None}, optDescrs);
         /// exact match of `optname` ...
-        let exact       = getWith((x,y) -> x == y): List[OptDescr[a]];
+        let exact       = getWith((x,y) -> x == y): List[OptionDescr[a]];
         /// Prefix `optname` match...
         /// If the prefix is enough to uniquely match with a long option string it is good enough...
         let options     = if (List.isEmpty(exact)) getWith((sub, s1) -> String.startsWith(s1, sub)) else exact;
@@ -202,19 +197,29 @@ namespace GetOpt {
             case xs             => Err(Ambiguous(xs))
         }
 
+    def findOptionById(xc: Char, optDescrs: List[OptionDescr[a]]): Result[OptionDescr[a], GetOptionFailure[a]] = 
+        /// This finds 0, 1, or more results. "more" is a failure (ambiguous), 0 is ignored, 1 is success. 
+        let options = List.filterMap(o -> { let ss = o.optionIds; if (List.exists(s -> s == xc, ss)) Some(o) else None}, optDescrs);
+        match options {
+            case optd :: Nil    => Ok(optd)
+            case Nil            => Err(NotFound)
+            case xs             => Err(Ambiguous(xs))
+        }
+
+
     /// Error formatting functions
 
-    def errAmbig(ods: List[OptDescr[a]], optStr: String): OptKind[a] = 
+    def errAmbig(ods: List[OptionDescr[a]], optStr: String): OptionKind[a] = 
         let header = "option '${optStr}' is ambiguous; could be one of:";
         OptErr(usageInfo(header, ods))
 
     /// Requires an argument but it was missing.
-    def errReq(d: String, optStr: String): OptKind[a] = 
+    def errReq(d: String, optStr: String): OptionKind[a] = 
         OptErr ("option '${optStr}' requires an argument ${d}\n")
 
     def errUnrec(optStr: String): String = "unrecognized option '${optStr}'\n"
 
-    def errNoArg(optStr: String): OptKind[a] = 
+    def errNoArg(optStr: String): OptionKind[a] = 
         OptErr("option '${optStr}' doesn't allow an argument\n")
 
     /// Additions to List...

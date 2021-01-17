@@ -41,9 +41,8 @@ def outp(x: Option[String]): Flag = match x {
 }
 
 
-def main(argv: Array[String]): Int32 & Impure = 
-    Array.foreach(x -> Console.printLine("Arg: '${x}'"), argv);
-    let args = Array.toList(argv);    
+def main(args: Array[String]): Int32 & Impure = 
+    Array.foreach(x -> Console.printLine("Arg: '${x}'"), args);    
     let header = "Usage: <program> [OPTION...] files...";
     let options1 = options();
     match getOpt(Permute, options1, args) {

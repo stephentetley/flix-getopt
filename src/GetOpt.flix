@@ -29,6 +29,15 @@ namespace GetOpt {
         case OptArg(Option[String] -> a, String)
     }
 
+    ///
+    /// The kind of a command line option (internal).
+    ///
+    /// * `Opt(a)` is an option producing a value of type `a`
+    /// * `UnreqOp` is an unrecognized option
+    /// * `NonOpt` is a non-option, returned to the user as a String
+    /// * `EndOfOpts` signals the end of options in the decoded command line String
+    /// * `OptErr` is the error case with a String error message
+    ///    
     enum OptionKind[a] {
         case Opt(a)
         case UnreqOpt(String)
@@ -36,7 +45,15 @@ namespace GetOpt {
         case EndOfOpts
         case OptErr(String)
     }
-
+    
+    ///
+    /// An `OptionDescr` describes a single command line option. 
+    ///
+    /// * `optionIds` is a list of single character abbreviations identifying the option
+    /// * `optionNames` is a list of long names identifying the option
+    /// * `argDescriptor` defines the format of the option
+    /// * `explanation` is the description of the option printed to the user by the function `usageInfo`
+    ///
     type alias OptionDescr[a] =
         { optionIds: List[Char]
         , optionNames: List[String]
@@ -49,8 +66,8 @@ namespace GetOpt {
 
     pub def usageInfo(header: String, optionDescriptors: List[OptionDescr[a]]): String = 
         let paste = (x, y, z) -> "  ${x}  ${y}  ${z}";
-        let (shorts, longs, ds) = List.flatMap(formatOpt, optionDescriptors) |> unzip3;
-        let table = zipWith3(paste, sameLen(shorts), sameLen(longs), ds);
+        let (shorts, longs, ds) = List.flatMap(formatOpt, optionDescriptors) |> List.unzip3;
+        let table = List.zipWith3(paste, sameLen(shorts), sameLen(longs), ds);
         String.unlines(header :: table)
 
     def sameLen(xs: List[String]): List[String] = 
@@ -80,7 +97,7 @@ namespace GetOpt {
         case OptArg(_, descr)   => "--${long}[=${descr}]"
     }
 
-    /// Failure is a list of error messages
+    /// Failure (Err) is a list of error messages
     pub def getOpt(ordering: ArgOrder[a], 
                    optDescrs: List[OptionDescr[a]], 
                    sourceArgs: List[String]): Result[{options: List[a], nonOptions: List[String]}, List[String]] =
@@ -138,7 +155,7 @@ namespace GetOpt {
         match findOptionByName(optname, optDescrs) { 
             case Ok(opt) => match (opt.argDescriptor, deconsLeft(arg), tokens) {
                 case (NoArg(a),     None,               rest)       => (Opt(a), rest)
-                case (NoArg(_),     Some(('=', _)),     rest)       => (errNoArg(optStr), rest)
+                case (NoArg(_),     Some(('=', _)),     rest)       => (errNoArgReq(optStr), rest)
                 case (ReqArg(_, d), None,               Nil)        => (errReq(d, optStr), Nil)
                 case (ReqArg(f, _), None,               r :: rest)  => (Opt(f(r)), rest)
                 case (ReqArg(f, _), Some(('=', xs)),    rest)       => (Opt(f(xs)), rest)
@@ -180,7 +197,7 @@ namespace GetOpt {
     /// Looking up options
 
     enum GetOptionFailure[a] {
-        case Ambiguous(List[OptionDescr[a]])
+        case Ambiguous(Nel[OptionDescr[a]])
         case NotFound
     }
 
@@ -193,58 +210,52 @@ namespace GetOpt {
         let options     = if (List.isEmpty(exact)) getWith((sub, s1) -> String.startsWith(s1, sub)) else exact;
         match options {
             case optd :: Nil    => Ok(optd)
+            case x :: xs        => Err(Ambiguous(Nel(x, xs)))
             case Nil            => Err(NotFound)
-            case xs             => Err(Ambiguous(xs))
         }
-
+    
+    /// 
+    /// Return the option option descriptor identified by the character `xc`.
+    /// 
+    /// This function returns `Err(NotFound)` if `xc` is not recognized.
+    ///
+    /// It returns `Err(Ambiguous(xs))` if `xc` is not recognized.
+    /// 
     def findOptionById(xc: Char, optDescrs: List[OptionDescr[a]]): Result[OptionDescr[a], GetOptionFailure[a]] = 
         /// This finds 0, 1, or more results. "more" is a failure (ambiguous), 0 is ignored, 1 is success. 
         let options = List.filterMap(o -> { let ss = o.optionIds; if (List.exists(s -> s == xc, ss)) Some(o) else None}, optDescrs);
         match options {
             case optd :: Nil    => Ok(optd)
+            case x :: xs        => Err(Ambiguous(Nel(x, xs)))
             case Nil            => Err(NotFound)
-            case xs             => Err(Ambiguous(xs))
         }
 
 
     /// Error formatting functions
 
-    def errAmbig(ods: List[OptionDescr[a]], optStr: String): OptionKind[a] = 
+    /// 
+    /// Return an error indicating the option is ambiguous and could identify more than one option descriptor.
+    /// 
+    def errAmbig(ods: Nel[OptionDescr[a]], optStr: String): OptionKind[a] = 
         let header = "option '${optStr}' is ambiguous; could be one of:";
-        OptErr(usageInfo(header, ods))
+        OptErr(usageInfo(header, Nel.toList(ods)))
 
-    /// Requires an argument but it was missing.
+    /// 
+    /// Return an error indicating the option requires an argument that was not supplied.
+    /// 
     def errReq(d: String, optStr: String): OptionKind[a] = 
         OptErr ("option '${optStr}' requires an argument ${d}\n")
 
+    /// 
+    /// Return an error indicating the option name was not recognized.
+    /// 
     def errUnrec(optStr: String): String = "unrecognized option '${optStr}'\n"
 
-    def errNoArg(optStr: String): OptionKind[a] = 
+    /// 
+    /// Return an error indicating the option was supplied an argument when it does not want one.
+    /// 
+    def errNoArgReq(optStr: String): OptionKind[a] = 
         OptErr("option '${optStr}' doesn't allow an argument\n")
 
-    /// Additions to List...
-
-    pub def unzip3(xs: List[(a, b, c)]): (List[a], List[b], List[c]) = unzip3Helper(xs, (ks1, ks2, ks3) -> (ks1, ks2, ks3))
-
-    def unzip3Helper(xs: List[(a, b, c)], k: (List[a], List[b], List[c]) -> (List[a], List[b], List[c])): (List[a], List[b], List[c]) = match xs {
-        case Nil => k(Nil, Nil, Nil)
-        case (x1, x2, x3) :: rs => unzip3Helper(rs, (ks1, ks2, ks3) -> k(x1 :: ks1, x2 :: ks2, x3 :: ks3))
-    }
-
-    pub def zipWith3(f: (a, b, c) -> d & ef, xs: List[a], ys: List[b], zs: List[c]): List[d] & ef = 
-        zipWith3Helper(f, xs, ys, zs, ks -> ks)
-
-    def zipWith3Helper(f: (a, b, c) -> d & ef, xs: List[a], ys: List[b], zs: List[c], k: List[d] -> List[d]): List[d] & ef = 
-        match (xs, ys, zs) {
-            case (x :: rs, y :: qs, z :: ss) => { 
-                let a = f(x, y, z);
-                zipWith3Helper(f, rs, qs, ss, ks -> k(a :: ks))
-            }
-            case _ => k(Nil)
-        }
-
-    pub def cartesianProduct(xs: List[a], ys: List[b]): List[(a,b)] = 
-        let step = x -> List.map(y -> (x,y), ys);
-        List.flatMap(step, xs)
-
+    
 }    

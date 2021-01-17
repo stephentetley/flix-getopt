@@ -15,7 +15,7 @@
  */
 
 ///
-/// Parse the command line options supplied to `main`.
+/// Parse the array of command line options supplied to `main`.
 ///
 /// Acknowledgement: this is a port of Sven Panne's `System.Console.GetOpt` in the Haskell Base libraries.
 ///
@@ -23,13 +23,26 @@
 
 namespace GetOpt {
 
-
+    /// 
+    /// `ArgOrder` defines how to parse further arguments that follow non-options.
+    /// 
+    /// * `RequireOrder` after the first non-option all remain arguments are treated as non-options
+    /// * `Permute` options and non-options are freely interspersed in the input stream
+    /// * `ReturnInOrder` turn non-options into options by applying the supplied function
+    ///
     pub enum ArgOrder[a] {
         case RequireOrder
         case Permute
         case ReturnInOrder(String -> a)
     }
     
+    /// 
+    /// `ArgDescr` defines whether or not the option takes an argument.
+    /// 
+    /// * `NoArg` expects no argument. The constructor takes a value of type `a` indicating the option that has been recognized.
+    /// * `ReqArg` mandates an argument. The constructor takes a function to decode the argument and description string.
+    /// * `OptArg` optionally requires an argument. The constructor takes a function to decode the argument and description string.
+    ///
     pub enum ArgDescr[a] {
         case NoArg(a)
         case ReqArg(String -> a, String)
@@ -69,8 +82,11 @@ namespace GetOpt {
         }
 
 
-
-
+    ///
+    /// Return a formatted string describing the usage of the command.
+    ///
+    /// Typically this output is used by "--help"
+    /// 
     pub def usageInfo(header: String, optionDescriptors: List[OptionDescr[a]]): String = 
         let paste = (x, y, z) -> "  ${x}  ${y}  ${z}";
         let (shorts, longs, ds) = List.flatMap(formatOpt, optionDescriptors) |> List.unzip3;
@@ -118,20 +134,38 @@ namespace GetOpt {
         case OptArg(_, descr)   => "--${long}[=${descr}]"
     }
 
-    /// Failure (Err) is a list of error messages
+    ///
+    /// Decode the array of command line options supplied to `main`.
+    ///
+    /// `ordering` mandates how processing of options and non-options is handled.
+    ///
+    /// `optDescriptors` is a list of processors for decoding individual options.
+    ///
+    /// `sourceArgs` should be the array of command line arguments supplied to main.
+    ///
+    /// If successful, `getOpt` returns lists of decoded options and non-options. If unsuccessful it
+    /// returns a list of error messages, with unknown options considered to be errors.
+    ///
     pub def getOpt(ordering: ArgOrder[a], 
-                   optDescrs: List[OptionDescr[a]], 
+                   optDescriptors: List[OptionDescr[a]], 
                    sourceArgs: Array[String]): Result[{options: List[a], nonOptions: List[String]}, List[String]] & Impure =
-        let answers = getOpt1(ordering, optDescrs, sourceArgs);
+        let answers = getOpt1(ordering, optDescriptors, sourceArgs);
         match answers.errors ::: List.map(errUnrec, answers.unknowns) {
             case Nil => Ok({options = answers.options, nonOptions = answers.nonOptions})
             case errs => Err(errs)
         }
 
+    ///
+    /// This is a more general version of `getOpt` that returns all the results of decoding the command line 
+    /// options without distinguishing whether the decoding is successful or a failure.
+    ///
+    /// Client code calling this function, rather than `getOpt`, is free to process or ignore the results collected
+    /// in `unknowns` and `errors` which would indicate problems with the decoding if either were not empty.
+    /// 
     pub def getOpt1(ordering: ArgOrder[a], 
-                    optDescrs: List[OptionDescr[a]], 
+                    optDescriptors: List[OptionDescr[a]], 
                     sourceArgs: Array[String]): {options: List[a], nonOptions: List[String], unknowns: List[String], errors: List[String]} & Impure =
-        let (os, xs, us, es) = getOpt1Helper(ordering, optDescrs, Array.toList(sourceArgs));
+        let (os, xs, us, es) = getOpt1Helper(ordering, optDescriptors, Array.toList(sourceArgs));
         {options = os, nonOptions = xs, unknowns = us, errors = es}
 
 

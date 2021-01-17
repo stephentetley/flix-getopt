@@ -4,6 +4,15 @@ use GetOpt.ArgOrder.{RequireOrder, Permute, ReturnInOrder};
     
 use GetOpt.{getOpt, usageInfo};
 
+def main(args: Array[String]): Int32 & Impure = 
+    Array.foreach(x -> Console.printLine("Arg: '${x}'"), args);    
+    let header = "Usage: <program> [OPTION...] files...";
+    let options1 = options();
+    match getOpt(Permute, options1, args) {
+        case Ok(opts)   => {Console.printLine("Optionals: ${opts.options}"); Console.printLine("Non-optionals: ${opts.nonOptions}"); 0}
+        case Err(errs)  => {Console.printLine("Errors: ${errs}");  Console.printLine(usageInfo(header, options1)); 1}
+    }
+    
 enum Flag {
     case Verbose
     case Version 
@@ -41,12 +50,5 @@ def outp(x: Option[String]): Flag = match x {
 }
 
 
-def main(args: Array[String]): Int32 & Impure = 
-    Array.foreach(x -> Console.printLine("Arg: '${x}'"), args);    
-    let header = "Usage: <program> [OPTION...] files...";
-    let options1 = options();
-    match getOpt(Permute, options1, args) {
-        case Ok(opts)   => {Console.printLine("Optionals: ${opts.options}"); Console.printLine("Non-optionals: ${opts.nonOptions}"); 0}
-        case Err(errs)  => {Console.printLine("Errors: ${errs}");  Console.printLine(usageInfo(header, options1)); 1}
-    }
+
 

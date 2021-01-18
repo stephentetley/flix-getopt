@@ -146,8 +146,8 @@ namespace GetOpt {
     /// If successful, `getOpt` returns lists of decoded options and non-options. If unsuccessful it
     /// returns a non-empty list of error messages, with unknown options considered to be errors.
     ///
-    pub def getOpt(ordering: ArgOrder[a], 
-                   optDescriptors: List[OptionDescr[a]], 
+    pub def getOpt(ordering: ArgOrder[a],
+                   optDescriptors: List[OptionDescr[a]],
                    sourceArgs: Array[String]): Validation[{options: List[a], nonOptions: List[String]}, String] & Impure =
         let answers = getOpt1(ordering, optDescriptors, sourceArgs);
         match answers.errors ::: List.map(errUnrec, answers.unknowns) {
@@ -339,5 +339,62 @@ namespace GetOpt {
     def errNoArgReq(optStr: String): OptionKind[a] = 
         OptErr("option '${optStr}' doesn't allow an argument\n")
 
-    
+
+    /// Preprocessing the commandline args.
+
+    ///
+    /// Preprocess the command line arguments before parsing them.
+    ///
+    /// Arguments supplied as an `Array[String]` to main are simply derived from the input split on space.
+    /// This does not account for, for example, Windows file names which may include space.
+    ///
+    /// `preprocess` is a simple function that can be used to "rejoin" command line arguments if they were
+    /// joined by "quotation marks" in the user supplied string (quotations marks are configurable and do not
+    /// have to be double quotes).
+    ///
+    pub def preprocess(options: {quoteOpen: String, quoteClose: String, stripQuoteMarks: Bool}, args: Array[String]): Array[String] & Impure =
+        let args1 = groupWhenQuoted(options.quoteOpen, options.quoteClose, args);
+        if (options.stripQuoteMarks)
+            removeQuoteMarks(options.quoteOpen, options.quoteClose, args1)
+        else
+            args1
+
+    ///
+    /// Returns `args` with tokens inside quotes grouped together as a single token.
+    ///
+    /// Starts in the initial state, outside a quotation.
+    ///
+    def groupWhenQuoted(quoteOpen: String, quoteClose: String, args: Array[String]): Array[String] & Impure =
+        groupWhenQuotedHelper(quoteOpen, quoteClose, Array.toList(args), ks -> List.toArray(ks))
+
+    ///
+    /// Helper for `groupWhenQuoted`.
+    ///
+    /// Here we are in the initial state, outside a quotation.
+    ///
+    def groupWhenQuotedHelper(quoteOpen: String, quoteClose: String, tokens: List[String], k: List[String] ~> Array[String]): Array[String] & Impure =
+        match tokens {
+            case Nil => k(Nil)
+            case x :: rest if String.contains(x, quoteOpen) => groupWhenQuotedHelperInner(quoteOpen, quoteClose, rest, x, ks -> k(ks))
+            case x :: rest => groupWhenQuotedHelper(quoteOpen, quoteClose, rest, ks -> k(x :: ks))
+        }
+
+    ///
+    /// Helper for `groupWhenQuoted`.
+    ///
+    /// Here we are "inside" a quotation, stored so far as `acc`.
+    ///
+    def groupWhenQuotedHelperInner(quoteOpen: String, quoteClose: String, tokens: List[String], acc: String, k: List[String] ~> Array[String]): Array[String] & Impure =
+        match tokens {
+            case Nil => k(acc :: Nil)
+            case x :: rest if String.contains(x, quoteClose) => groupWhenQuotedHelper(quoteOpen, quoteClose, rest, ks -> k((acc + " " +  x) :: ks))
+            case x :: rest => groupWhenQuotedHelperInner(quoteOpen, quoteClose, rest, (acc + " " +  x), k)
+        }
+
+    ///
+    /// Remove all quote marks from the array of tokens.
+    ///
+    def removeQuoteMarks(quoteOpen: String, quoteClose: String, args: Array[String]): Array[String] & Impure =
+        args |> Array.map(String.replace(quoteOpen, "") >> String.replace(quoteClose, ""))
+
 }    

@@ -331,7 +331,7 @@ namespace TestGetOpt {
             Nel.length(x) == 1
 
     /////////////////////////////////////////////////////////////////////////////
-    // Prefix of long option                                            //
+    // Prefix of long option                                                   //
     /////////////////////////////////////////////////////////////////////////////
 
     @test
@@ -362,4 +362,44 @@ namespace TestGetOpt {
         getOpt(Permute, options(), args) `assertSuccessWith` x ->
             (x.options == HiRes :: Height(1200) :: Nil) and (x.nonOptions == "test_option1" :: Nil)
 
+    /////////////////////////////////////////////////////////////////////////////
+    // Decoding option args                                                    //
+    /////////////////////////////////////////////////////////////////////////////
+
+    @test
+    def testDecodeArgs01(): Bool & Impure =
+        let args = ["--width=1400"];
+        getOpt(Permute, options(), args) `assertSuccessWith` x ->
+            (x.options == Width(1400) :: Nil) and (x.nonOptions == Nil)
+
+    @test
+    def testDecodeArgs02(): Bool & Impure =
+        let args = ["--width=fourteen_thousand"];
+        getOpt(Permute, options(), args) `assertFailureWith` x ->
+            Nel.length(x) == 1
+
+    @test
+    def testDecodeArgs03(): Bool & Impure =
+        let args = ["--width=1400", "--height=1000"];
+        getOpt(Permute, options(), args) `assertSuccessWith` x ->
+            (x.options == Width(1400) :: Height(1000) :: Nil) and (x.nonOptions == Nil)
+
+    @test
+    def testDecodeArgs04(): Bool & Impure =
+        let args = ["--width=fourteen_hundred", "--height=1000"];
+        getOpt(Permute, options(), args) `assertFailureWith` x ->
+            Nel.length(x) == 1
+
+    @test
+    def testDecodeArgs05(): Bool & Impure =
+        let args = ["--width=1400", "--height=one_thousand"];
+        getOpt(Permute, options(), args) `assertFailureWith` x ->
+            Nel.length(x) == 1
+
+    @test
+    def testDecodeArgs06(): Bool & Impure =
+        let args = ["--width=fourteen_hundred", "--height=one_thousand"];
+        getOpt(Permute, options(), args) `assertFailureWith` x ->
+            Nel.length(x) == 2
+            
 }

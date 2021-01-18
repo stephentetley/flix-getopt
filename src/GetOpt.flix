@@ -235,7 +235,7 @@ namespace GetOpt {
     /// Otherwise return `Some(c, rs)` where `c` is the first character of `s` and `rs` is the rest of `s`.
     /// 
     def deconsLeft(s: String): Option[(Char, String)] = 
-        if (String.length(s) >= 0)
+        if (String.length(s) > 0)
             Some((String.charAt(0, s), String.dropLeft(1, s)))
         else
             None

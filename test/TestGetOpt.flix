@@ -116,7 +116,6 @@ namespace TestGetOpt {
         getOpt(Permute, options(), args) `assertSuccessWith` x ->
             (x.options == HiRes :: Nil) and (x.nonOptions == Nil)
 
-
     @test
     def testCharArgs02(): Bool & Impure =
         let args = ["-Xc"];
@@ -179,6 +178,83 @@ namespace TestGetOpt {
     def testCharArgs11(): Bool & Impure =
         /// "-m" not defined
         let args = ["-X", "-m"];
+        getOpt(Permute, options(), args) `assertFailureWith` x ->
+            Nel.length(x) == 1
+
+    /////////////////////////////////////////////////////////////////////////////
+    // String / name options                                                   //
+    /////////////////////////////////////////////////////////////////////////////
+
+    @test
+    def testStringArgs01(): Bool & Impure =
+        let args = ["--hires"];
+        getOpt(Permute, options(), args) `assertSuccessWith` x ->
+            (x.options == HiRes :: Nil) and (x.nonOptions == Nil)
+
+    @test
+    def testStringArgs02(): Bool & Impure =
+        let args = ["--hires", "--colour"];
+        getOpt(Permute, options(), args) `assertSuccessWith` x ->
+            (x.options == HiRes :: Colour(None) :: Nil) and (x.nonOptions == Nil)
+
+    @test
+    def testStringArgs03(): Bool & Impure =
+        let args = ["--hires", "--colour=Blue"];
+        getOpt(Permute, options(), args) `assertSuccessWith` x ->
+            (x.options == HiRes :: Colour(Some("Blue")) :: Nil) and (x.nonOptions == Nil)
+
+    @test
+    def testStringArgs04(): Bool & Impure =
+        /// Alternative spelling
+        let args = ["--hires", "--color"];
+        getOpt(Permute, options(), args) `assertSuccessWith` x ->
+            (x.options == HiRes :: Colour(None) :: Nil) and (x.nonOptions == Nil)
+
+    @test
+    def testStringArgs05(): Bool & Impure =
+    /// Alternative spelling
+        let args = ["--hires", "--color=Blue"];
+        getOpt(Permute, options(), args) `assertSuccessWith` x ->
+            (x.options == HiRes :: Colour(Some("Blue")) :: Nil) and (x.nonOptions == Nil)
+
+    @test
+    def testStringArgs06(): Bool & Impure =
+        let args = ["--hires", "--colour=Blue", "non_option1"];
+        getOpt(Permute, options(), args) `assertSuccessWith` x ->
+            (x.options == HiRes :: Colour(Some("Blue")) :: Nil) and (x.nonOptions == "non_option1" :: Nil)
+
+    @test
+    def testStringArgs07(): Bool & Impure =
+        let args = ["--hires", "--colour=Blue", "--width=1024", "--height=768"];
+        getOpt(Permute, options(), args) `assertSuccessWith` x ->
+            (x.options == HiRes :: Colour(Some("Blue")) :: Width(1024) :: Height(768) :: Nil)
+                and (x.nonOptions == Nil)
+
+    @test
+    def testStringArgs08(): Bool & Impure =
+        let args = ["--hires", "--colour=Blue", "--width=1024", "--height=768", "non_option1"];
+        getOpt(Permute, options(), args) `assertSuccessWith` x ->
+            (x.options == HiRes :: Colour(Some("Blue")) :: Width(1024) :: Height(768) :: Nil)
+                and (x.nonOptions == "non_option1" :: Nil)
+
+    @test
+    def testStringArgs09(): Bool & Impure =
+        /// "--multiple" not defined
+        let args = ["--multiple"];
+        getOpt(Permute, options(), args) `assertFailureWith` x ->
+            Nel.length(x) == 1
+
+    @test
+    def testStringArgs10(): Bool & Impure =
+        /// "--multiple" not defined
+        let args = ["--hires", "--multiple"];
+        getOpt(Permute, options(), args) `assertFailureWith` x ->
+            Nel.length(x) == 1
+
+    @test
+    def testStringArgs11(): Bool & Impure =
+        /// "--multiple" not defined
+        let args = ["--hires", "--multiple", "test_option1"];
         getOpt(Permute, options(), args) `assertFailureWith` x ->
             Nel.length(x) == 1
 

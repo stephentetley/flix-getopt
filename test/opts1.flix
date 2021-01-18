@@ -36,17 +36,17 @@ def options(): List[OptionDescr[Flag]] =
     ::  {optionIds = 'V' :: '?' :: Nil, optionNames = "version" :: Nil,   argDescriptor = NoArg(Version),         explanation = "show version number" }
     ::  {optionIds = 'o':: Nil,         optionNames = "output" :: Nil,    argDescriptor = OptArg(outp, "FILE"),   explanation = "output FILE" }
     ::  {optionIds = 'c':: Nil,         optionNames = Nil,                argDescriptor = OptArg(inp, "FILE"),    explanation = "input FILE" }
-    ::  {optionIds = 'L':: Nil,         optionNames = "libdir" :: Nil,    argDescriptor = ReqArg(LibDir,"DIR"),   explanation = "library directory" }
+    ::  {optionIds = 'L':: Nil,         optionNames = "libdir" :: Nil,    argDescriptor = ReqArg(LibDir >> Some, "DIR"),   explanation = "library directory" }
     :: Nil
 
-def inp(x: Option[String]): Flag = match x { 
-    case Some(s) => Input(s)
-    case None => Input("stdin")
+def inp(x: Option[String]): Option[Flag] = match x { 
+    case Some(s) => Some(Input(s))
+    case None => Some(Input("stdin"))
 }
 
-def outp(x: Option[String]): Flag = match x { 
-    case Some(s) => Output(s)
-    case None => Output("stdout")
+def outp(x: Option[String]): Option[Flag] = match x { 
+    case Some(s) => Some(Output(s))
+    case None => Some(Output("stdout"))
 }
 
 

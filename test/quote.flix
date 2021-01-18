@@ -20,8 +20,8 @@ instance ToString[Flag] {
 
 
 def options(): List[OptionDescr[Flag]] =
-       {optionIds = 'i':: Nil,     optionNames = "input" :: Nil,   argDescriptor = ReqArg(Input, "INFILE"),     explanation = "source INFILE"}
-    :: {optionIds = 'o':: Nil,     optionNames = "output" :: Nil,  argDescriptor = ReqArg(Output, "OUTFILE"),   explanation = "target OUTFILE"}
+       {optionIds = 'i':: Nil,     optionNames = "input" :: Nil,   argDescriptor = ReqArg(Input >> Some, "INFILE"),     explanation = "source INFILE"}
+    :: {optionIds = 'o':: Nil,     optionNames = "output" :: Nil,  argDescriptor = ReqArg(Output >> Some, "OUTFILE"),   explanation = "target OUTFILE"}
     :: Nil
 
 

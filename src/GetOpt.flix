@@ -43,10 +43,13 @@ namespace GetOpt {
     /// * `ReqArg` mandates an argument. The constructor takes a function to decode the argument and description string.
     /// * `OptArg` optionally requires an argument. The constructor takes a function to decode the argument and description string.
     ///
+    /// The "decode" functions are expected to produce `Some(_)` when decoding is successful, and `None` to indicate
+    /// failure.
+    ///
     pub enum ArgDescr[a] {
         case NoArg(a)
-        case ReqArg(String -> a, String)
-        case OptArg(Option[String] -> a, String)
+        case ReqArg(String -> Option[a], String)
+        case OptArg(Option[String] -> Option[a], String)
     }
 
     ///
@@ -218,10 +221,10 @@ namespace GetOpt {
                 case (NoArg(a),     None,               rest)       => (Opt(a), rest)
                 case (NoArg(_),     Some(('=', _)),     rest)       => (errNoArgReq(optStr), rest)
                 case (ReqArg(_, d), None,               Nil)        => (errReq(d, optStr), Nil)
-                case (ReqArg(f, _), None,               r :: rest)  => (Opt(f(r)), rest)
-                case (ReqArg(f, _), Some(('=', xs)),    rest)       => (Opt(f(xs)), rest)
-                case (OptArg(f, _), None,               rest)       => (Opt(f(None)), rest)
-                case (OptArg(f, _), Some(('=', xs)),    rest)       => (Opt(f(Some(xs))), rest)
+                case (ReqArg(f, _), None,               r :: rest)  => (decodeArg(f(r), optStr), rest)
+                case (ReqArg(f, _), Some(('=', ss)),    rest)       => (decodeArg(f(ss), optStr), rest)
+                case (OptArg(f, _), None,               rest)       => (decodeArg(f(None), optStr), rest)
+                case (OptArg(f, _), Some(('=', ss)),    rest)       => (decodeArg(f(Some(ss)), optStr), rest)
                 case (_,            _,                  rest)       => (UnreqOpt("--${xstr}"), rest)
             }
             case Err(Ambiguous(options))                            => (errAmbig(options, optStr), tokens)
@@ -251,15 +254,23 @@ namespace GetOpt {
                 case (NoArg(a), "", rest)           => (Opt(a), rest)
                 case (NoArg(a), str, rest)          => (Opt(a), "-${str}" :: rest)
                 case (ReqArg(_, d), "", Nil)        => (errReq(d, optStr), Nil)
-                case (ReqArg(f, _), "", r :: rest)  => (Opt(f(r)), rest)
-                case (ReqArg(f, _), str, rest)      => (Opt(f(str)), rest)
-                case (OptArg(f, _), "", rest)       => (Opt(f(None)), rest)
-                case (OptArg(f, _), str, rest)      => (Opt(f(Some(str))), rest)            
+                case (ReqArg(f, _), "", r :: rest)  => (decodeArg(f(r), optStr), rest)
+                case (ReqArg(f, _), str, rest)      => (decodeArg(f(str), optStr), rest)
+                case (OptArg(f, _), "", rest)       => (decodeArg(f(None), optStr), rest)
+                case (OptArg(f, _), str, rest)      => (decodeArg(f(Some(str)), optStr), rest)
             }
             case Err(Ambiguous(options))            => (errAmbig(options, optStr), tokens)
             case Err(NotFound) if xstr == ""        => (UnreqOpt(optStr), tokens)
             case Err(NotFound)                      => (UnreqOpt(optStr), "-${xstr}" :: tokens)
         }
+
+    ///
+    /// Decode the argument which should be `Some(_)` otherwise decoding has failed.
+    ///
+    def decodeArg(x: Option[a], optStr: String): OptionKind[a] = match x {
+        case Some(x1) => Opt(x1)
+        case None => errDecode(optStr)
+    }
 
     /// Looking up options
 
@@ -338,6 +349,12 @@ namespace GetOpt {
     /// 
     def errNoArgReq(optStr: String): OptionKind[a] = 
         OptErr("option '${optStr}' doesn't allow an argument\n")
+
+    ///
+    /// Return an error indicating the option was supplied an argument it could not decode.
+    ///
+    def errDecode(optStr: String): OptionKind[a] =
+        OptErr("option '${optStr}' could not decode its argument\n")
 
 
     /// Preprocessing the commandline args.

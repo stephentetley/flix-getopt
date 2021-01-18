@@ -51,17 +51,12 @@ namespace TestGetOpt {
         }
     }
 
-    def colour(x: Option[String]): Flag = Colour(x)
+    def colour(x: Option[String]): Option[Flag] = Some(Colour(x))
 
-    def width(x: String): Flag = match FromString.fromString(x) {
-        case Some(i) => Width(i)
-        case None => Width(1000)
-    }
+    def width(x: String): Option[Flag] = Option.map(x1 -> Width(x1), FromString.fromString(x) : Option[Int32])
 
-    def height(x: String): Flag = match FromString.fromString(x) {
-        case Some(i) => Height(i)
-        case None => Height(760)
-    }
+    def height(x: String): Option[Flag] = Option.map(x1 -> Height(x1), FromString.fromString(x) : Option[Int32])
+
 
     def options(): List[OptionDescr[Flag]] =
             {optionIds = 'X' :: Nil,        optionNames = "hires" :: Nil,               argDescriptor = NoArg(HiRes),               explanation = "show in high resolution"}

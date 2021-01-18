@@ -144,15 +144,15 @@ namespace GetOpt {
     /// `sourceArgs` should be the array of command line arguments supplied to main.
     ///
     /// If successful, `getOpt` returns lists of decoded options and non-options. If unsuccessful it
-    /// returns a list of error messages, with unknown options considered to be errors.
+    /// returns a non-empty list of error messages, with unknown options considered to be errors.
     ///
     pub def getOpt(ordering: ArgOrder[a], 
                    optDescriptors: List[OptionDescr[a]], 
-                   sourceArgs: Array[String]): Result[{options: List[a], nonOptions: List[String]}, List[String]] & Impure =
+                   sourceArgs: Array[String]): Validation[{options: List[a], nonOptions: List[String]}, String] & Impure =
         let answers = getOpt1(ordering, optDescriptors, sourceArgs);
         match answers.errors ::: List.map(errUnrec, answers.unknowns) {
-            case Nil => Ok({options = answers.options, nonOptions = answers.nonOptions})
-            case errs => Err(errs)
+            case Nil => Success({options = answers.options, nonOptions = answers.nonOptions})
+            case e :: es => Failure(Nel(e, es))
         }
 
     ///

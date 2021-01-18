@@ -258,5 +258,113 @@ namespace TestGetOpt {
         getOpt(Permute, options(), args) `assertFailureWith` x ->
             Nel.length(x) == 1
 
+    /////////////////////////////////////////////////////////////////////////////
+    // Mixed short and name options                                            //
+    /////////////////////////////////////////////////////////////////////////////
+
+    @test
+    def testMixedArgs01(): Bool & Impure =
+        let args = ["--hires", "-c"];
+        getOpt(Permute, options(), args) `assertSuccessWith` x ->
+            (x.options == HiRes :: Colour(None) :: Nil) and (x.nonOptions == Nil)
+
+    @test
+    def testMixedArgs02(): Bool & Impure =
+        let args = ["-X", "--colour"];
+        getOpt(Permute, options(), args) `assertSuccessWith` x ->
+            (x.options == HiRes :: Colour(None) :: Nil) and (x.nonOptions == Nil)
+
+    @test
+    def testMixedArgs03(): Bool & Impure =
+        let args = ["--hires", "-cBlue"];
+        getOpt(Permute, options(), args) `assertSuccessWith` x ->
+            (x.options == HiRes :: Colour(Some("Blue")) :: Nil) and (x.nonOptions == Nil)
+
+    @test
+    def testMixedArgs04(): Bool & Impure =
+        /// Alternative spelling
+        let args = ["-X", "--color"];
+        getOpt(Permute, options(), args) `assertSuccessWith` x ->
+            (x.options == HiRes :: Colour(None) :: Nil) and (x.nonOptions == Nil)
+
+    @test
+    def testMixedArgs05(): Bool & Impure =
+    /// Alternative spelling
+        let args = ["-X", "--color=Blue"];
+        getOpt(Permute, options(), args) `assertSuccessWith` x ->
+            (x.options == HiRes :: Colour(Some("Blue")) :: Nil) and (x.nonOptions == Nil)
+
+    @test
+    def testMixedArgs06(): Bool & Impure =
+        let args = ["-X", "--colour=Blue", "non_option1"];
+        getOpt(Permute, options(), args) `assertSuccessWith` x ->
+            (x.options == HiRes :: Colour(Some("Blue")) :: Nil) and (x.nonOptions == "non_option1" :: Nil)
+
+    @test
+    def testMixedArgs07(): Bool & Impure =
+        let args = ["-X", "--colour=Blue", "-w1024", "-h768"];
+        getOpt(Permute, options(), args) `assertSuccessWith` x ->
+            (x.options == HiRes :: Colour(Some("Blue")) :: Width(1024) :: Height(768) :: Nil)
+                and (x.nonOptions == Nil)
+
+    @test
+    def testMixedArgs08(): Bool & Impure =
+        let args = ["-X", "-cBlue", "--width=1024", "--height=768", "non_option1"];
+        getOpt(Permute, options(), args) `assertSuccessWith` x ->
+            (x.options == HiRes :: Colour(Some("Blue")) :: Width(1024) :: Height(768) :: Nil)
+                and (x.nonOptions == "non_option1" :: Nil)
+
+    @test
+    def testMixedArgs09(): Bool & Impure =
+        /// "-m" not defined
+        let args = ["--hires", "-m"];
+        getOpt(Permute, options(), args) `assertFailureWith` x ->
+            Nel.length(x) == 1
+
+    @test
+    def testMixedArgs10(): Bool & Impure =
+        /// "--multiple" not defined
+        let args = ["-X", "--multiple"];
+        getOpt(Permute, options(), args) `assertFailureWith` x ->
+            Nel.length(x) == 1
+
+    @test
+    def testMixedArgs11(): Bool & Impure =
+        /// "--multiple" not defined
+        let args = ["-X", "--multiple", "test_option1"];
+        getOpt(Permute, options(), args) `assertFailureWith` x ->
+            Nel.length(x) == 1
+
+    /////////////////////////////////////////////////////////////////////////////
+    // Prefix of long option                                            //
+    /////////////////////////////////////////////////////////////////////////////
+
+    @test
+    def testPrefixArgs01(): Bool & Impure =
+        /// Fail: Could be "hires" or "height"
+        let args = ["--h=1000"];
+        getOpt(Permute, options(), args) `assertFailureWith` x ->
+            Nel.length(x) == 1
+
+    @test
+    def testPrefixArgs02(): Bool & Impure =
+        /// Success: Could be only be "hires"
+        let args = ["--hi"];
+        getOpt(Permute, options(), args) `assertSuccessWith` x ->
+            (x.options == HiRes :: Nil) and (x.nonOptions == Nil)
+
+    @test
+    def testPrefixArgs03(): Bool & Impure =
+        /// Success: Could be only be "height"
+        let args = ["--he=1200"];
+        getOpt(Permute, options(), args) `assertSuccessWith` x ->
+            (x.options == Height(1200) :: Nil) and (x.nonOptions == Nil)
+
+    @test
+    def testPrefixArgs04(): Bool & Impure =
+        /// Success: Could be only be "height"
+        let args = ["--hi", "--he=1200", "test_option1"];
+        getOpt(Permute, options(), args) `assertSuccessWith` x ->
+            (x.options == HiRes :: Height(1200) :: Nil) and (x.nonOptions == "test_option1" :: Nil)
 
 }

@@ -4,51 +4,51 @@ use GetOpt.ArgOrder.{RequireOrder, Permute, ReturnInOrder};
     
 use GetOpt.{getOpt, usageInfo};
 
-def main(args: Array[String]): Int32 & Impure = 
-    Array.foreach(x -> Console.printLine("Arg: '${x}'"), args);    
-    let header = "Usage: <program> [OPTION...] files...";
-    let options1 = options();
-    match getOpt(Permute, options1, args) {
-        case Success(opts)   => {Console.printLine("Optionals: ${opts.options}"); Console.printLine("Non-optionals: ${opts.nonOptions}"); 0}
-        case Failure(errs)  => {Console.printLine("Errors: ${errs}");  Console.printLine(usageInfo(header, options1)); 1}
-    }
     
 enum Flag {
+    case Version
+    case Help 
     case Verbose
-    case Version 
-    case Input(String)
-    case Output(String) 
-    case LibDir(String)
+    case Threads(Int32)
+    case Listen(Int32)
 }
 
 instance ToString[Flag] {
     def toString(x: Flag): String = match x {
+        case Version    => "Version"
+        case Help       => "Help" 
         case Verbose    => "Verbose"
-        case Version    => "Version" 
-        case Input(s)   => "Input('${s}')"
-        case Output(s)  => "Output('${s}')"
-        case LibDir(s)  => "LibDir('${s}')"
+        case Threads(i) => "Threads(${i})"
+        case Listen(i)  => "Listen(${i})"
     }
 }
 
 def options(): List[OptionDescr[Flag]] = 
-        {optionIds = 'v' :: Nil,        optionNames = "verbose" :: Nil,   argDescriptor = NoArg(Verbose),         explanation = "chatty output on stderr"}
-    ::  {optionIds = 'V' :: '?' :: Nil, optionNames = "version" :: Nil,   argDescriptor = NoArg(Version),         explanation = "show version number" }
-    ::  {optionIds = 'o':: Nil,         optionNames = "output" :: Nil,    argDescriptor = OptArg(outp, "FILE"),   explanation = "output FILE" }
-    ::  {optionIds = 'c':: Nil,         optionNames = Nil,                argDescriptor = OptArg(inp, "FILE"),    explanation = "input FILE" }
-    ::  {optionIds = 'L':: Nil,         optionNames = "libdir" :: Nil,    argDescriptor = ReqArg(LibDir >> Some, "DIR"),   explanation = "library directory" }
+       {optionIds = 'v' :: Nil,         optionNames = "version" :: Nil,     argDescriptor = NoArg(Version),                 explanation = "prints the version number"}
+    :: {optionIds = 'h' :: '?' :: Nil,  optionNames = "help" :: Nil,        argDescriptor = NoArg(Help),                    explanation = "prints this usage information"}
+    :: {optionIds = 'h' :: '?' :: Nil,  optionNames = "verbose" :: Nil,     argDescriptor = NoArg(Verbose),                 explanation = "enables verbose output"}
+    :: {optionIds = 'o':: Nil,          optionNames = "threads" :: Nil,     argDescriptor = ReqArg(threads, "<threads>"),   explanation = "number of <threads> to use"}
+    :: {optionIds = 'i':: Nil,          optionNames = "listen" :: Nil,      argDescriptor = ReqArg(listen,  "<port>"),      explanation = "starts the socket server and listens on <port>" }
     :: Nil
 
-def inp(x: Option[String]): Option[Flag] = match x { 
-    case Some(s) => Some(Input(s))
-    case None => Some(Input("stdin"))
+def threads(x: String): Option[Flag] = match Int32.fromString(x) { 
+    case Ok(i) => Some(Threads(i))
+    case Err(_) => None
 }
 
-def outp(x: Option[String]): Option[Flag] = match x { 
-    case Some(s) => Some(Output(s))
-    case None => Some(Output("stdout"))
+def listen(x: String): Option[Flag] = match Int32.fromString(x) { 
+    case Ok(i) => Some(Listen(i))
+    case Err(_) => None
 }
 
 
 
+def main(args: Array[String]): Int32 & Impure = 
+    let args2 = GetOpt.preprocess({quoteOpen = "'", quoteClose = "'", stripQuoteMarks = false}, args);  
+    let header = "Usage: <program> [OPTION...] files...";
+    let options1 = options();
+    match getOpt(Permute, options1, args2) {
+        case Success(opts)   => {Console.printLine("Optionals: ${opts.options}"); Console.printLine("Non-optionals: ${opts.nonOptions}"); 0}
+        case Failure(errs)  => {Console.printLine("Errors: ${errs}");  Console.printLine(usageInfo(header, options1)); 1}
+    }
 
